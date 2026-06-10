@@ -1,0 +1,87 @@
+name: Build Push SWR and Deploy to CCE
+
+on:
+  push:
+    branches: ["main", "master"]
+  workflow_dispatch:
+
+env:
+  REGION: cn-north-4
+  SWR_REGISTRY: swr.cn-north-4.myhuaweicloud.com
+  SWR_ORG: ${{ secrets.SWR_ORG }}
+  NAMESPACE: default
+  BACKEND_DEPLOYMENT: backend
+  FRONTEND_DEPLOYMENT: frontend
+
+jobs:
+  build-push-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate image tag
+        id: vars
+        run: |
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          echo "tag=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${SHORT_SHA}"
+
+      - name: Login to Huawei Cloud SWR
+        run: |
+          echo "${{ secrets.SWR_PASSWORD }}" | docker login \
+            -u "${{ env.REGION }}@${{ secrets.SWR_AK }}" \
+            --password-stdin \
+            "${{ env.SWR_REGISTRY }}"
+
+      - name: Build backend image
+        run: |
+          docker build -t backend:${{ steps.vars.outputs.tag }} -f backend/Dockerfile.backend backend
+          docker tag backend:${{ steps.vars.outputs.tag }} \
+            ${{ env.SWR_REGISTRY }}/${{ env.SWR_ORG }}/backend:${{ steps.vars.outputs.tag }}
+          docker tag backend:${{ steps.vars.outputs.tag }} \
+            ${{ env.SWR_REGISTRY }}/${{ env.SWR_ORG }}/backend:latest
+
+      - name: Build frontend image
+        run: |
+          docker build -t frontend:${{ steps.vars.outputs.tag }} -f frontend/Dockerfile.frontend frontend
+          docker tag frontend:${{ steps.vars.outputs.tag }} \
+            ${{ env.SWR_REGISTRY }}/${{ env.SWR_ORG }}/frontend:${{ steps.vars.outputs.tag }}
+          docker tag frontend:${{ steps.vars.outputs.tag }} \
+            ${{ env.SWR_REGISTRY }}/${{ env.SWR_ORG }}/frontend:latest
+
+      - name: Push images to SWR
+        run: |
+          docker push ${{ env.SWR_REGISTRY }}/${{ env.SWR_ORG }}/backend:${{ steps.vars.outputs.tag }}
+          docker push ${{ env.SWR_REGISTRY }}/${{ env.SWR_ORG }}/backend:latest
+          docker push ${{ env.SWR_REGISTRY }}/${{ env.SWR_ORG }}/frontend:${{ steps.vars.outputs.tag }}
+          docker push ${{ env.SWR_REGISTRY }}/${{ env.SWR_ORG }}/frontend:latest
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG_B64 }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+          kubectl version --client
+          kubectl get nodes
+
+      - name: Update backend and frontend deployments
+        run: |
+          kubectl -n ${{ env.NAMESPACE }} set image deployment/${{ env.BACKEND_DEPLOYMENT }} \
+            backend=${{ env.SWR_REGISTRY }}/${{ env.SWR_ORG }}/backend:${{ steps.vars.outputs.tag }}
+          kubectl -n ${{ env.NAMESPACE }} set image deployment/${{ env.FRONTEND_DEPLOYMENT }} \
+            frontend=${{ env.SWR_REGISTRY }}/${{ env.SWR_ORG }}/frontend:${{ steps.vars.outputs.tag }}
+
+      - name: Wait for rollout
+        run: |
+          kubectl -n ${{ env.NAMESPACE }} rollout status deployment/${{ env.BACKEND_DEPLOYMENT }} --timeout=180s
+          kubectl -n ${{ env.NAMESPACE }} rollout status deployment/${{ env.FRONTEND_DEPLOYMENT }} --timeout=180s
+
+      - name: Show deployment images
+        run: |
+          kubectl -n ${{ env.NAMESPACE }} get deployment ${{ env.BACKEND_DEPLOYMENT }} \
+            -o jsonpath='{.spec.template.spec.containers[*].image}' && echo
+          kubectl -n ${{ env.NAMESPACE }} get deployment ${{ env.FRONTEND_DEPLOYMENT }} \
+            -o jsonpath='{.spec.template.spec.containers[*].image}' && echo
+          kubectl -n ${{ env.NAMESPACE }} get pods -o wide
