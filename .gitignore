@@ -1,0 +1,9 @@
+.env
+*.pyc
+__pycache__/
+results/
+data/
+*.log
+spark/k8s/spark-obs-secret.yaml
+k8s/rendered/
+.DS_Store
