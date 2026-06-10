@@ -1,0 +1,19 @@
+ARG BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/cloud-course-2026/pyspark:v9
+FROM ${BASE_IMAGE}
+
+USER root
+
+WORKDIR /opt/spark/work
+
+COPY requirements.txt /opt/spark/work/requirements.txt
+RUN python3 -m pip install --no-cache-dir -r /opt/spark/work/requirements.txt
+
+COPY jobs/ /opt/spark/work/
+COPY prac5_8_in.txt /opt/spark/work/prac5_8_in.txt
+
+RUN chown -R spark:spark /opt/spark/work || true
+
+USER spark
+
+ENV PYSPARK_PYTHON=python3
+ENV PYSPARK_DRIVER_PYTHON=python3

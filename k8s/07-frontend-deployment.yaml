@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      imagePullSecrets:
+        - name: swr-secret
+      containers:
+        - name: frontend
+          image: swr.cn-north-4.myhuaweicloud.com/cloud-course-2026/frontend:v1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          volumeMounts:
+            # 挂载整个目录，不使用 subPath，便于 ConfigMap 更新后文件同步。
+            - name: nginx-config-volume
+              mountPath: /etc/nginx/conf.d
+      volumes:
+        - name: nginx-config-volume
+          configMap:
+            name: nginx-config
+            items:
+              - key: default.conf
+                path: default.conf

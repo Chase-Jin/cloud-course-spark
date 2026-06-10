@@ -1,0 +1,82 @@
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: pyspark-performance-2exec
+  namespace: default
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  image: swr.cn-north-4.myhuaweicloud.com/cloud-course-2026/spark-analysis:v1
+  imagePullPolicy: Always
+  imagePullSecrets:
+    - swr-secret
+  mainApplicationFile: local:///opt/spark/work/performance.py
+  arguments:
+    - "--engine"
+    - "spark"
+    - "--input-path"
+    - "s3a://cloud-course-2026-bucket/datasets/douban_movies.csv"
+    - "--dataset-type"
+    - "douban"
+    - "--output-json"
+    - "/tmp/perf_spark.json"
+  sparkVersion: "3.4.0"
+  restartPolicy:
+    type: Never
+  driver:
+    cores: 1
+    memory: "1g"
+    serviceAccount: spark
+    env:
+      - name: DATASET_TYPE
+        value: "douban"
+      - name: INPUT_PATH
+        value: "s3a://cloud-course-2026-bucket/datasets/douban_movies.csv"
+      - name: EXECUTOR_INSTANCES
+        value: "2"
+      - name: OBS_AK
+        valueFrom:
+          secretKeyRef:
+            name: spark-obs-secret
+            key: OBS_AK
+      - name: OBS_SK
+        valueFrom:
+          secretKeyRef:
+            name: spark-obs-secret
+            key: OBS_SK
+      - name: OBS_ENDPOINT
+        valueFrom:
+          secretKeyRef:
+            name: spark-obs-secret
+            key: OBS_ENDPOINT
+      - name: PERF_OUTPUT_JSON
+        value: "/tmp/perf_spark_2exec.json"
+  executor:
+    cores: 1
+    coreRequest: "200m"
+    instances: 2
+    memory: "1g"
+    memoryOverhead: "256m"
+    env:
+      - name: DATASET_TYPE
+        value: "douban"
+      - name: INPUT_PATH
+        value: "s3a://cloud-course-2026-bucket/datasets/douban_movies.csv"
+      - name: EXECUTOR_INSTANCES
+        value: "2"
+      - name: OBS_AK
+        valueFrom:
+          secretKeyRef:
+            name: spark-obs-secret
+            key: OBS_AK
+      - name: OBS_SK
+        valueFrom:
+          secretKeyRef:
+            name: spark-obs-secret
+            key: OBS_SK
+      - name: OBS_ENDPOINT
+        valueFrom:
+          secretKeyRef:
+            name: spark-obs-secret
+            key: OBS_ENDPOINT
