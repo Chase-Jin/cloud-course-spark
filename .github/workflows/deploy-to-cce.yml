@@ -1,11 +1,13 @@
-name: Build Push SWR and Deploy to CCE
+name: Build Push Deploy
 
 on:
   push:
-    branches: ["main", "master"]
+    branches:
+      - main
   workflow_dispatch:
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   REGION: cn-north-4
   SWR_REGISTRY: swr.cn-north-4.myhuaweicloud.com
   SWR_ORG: ${{ secrets.SWR_ORG }}
