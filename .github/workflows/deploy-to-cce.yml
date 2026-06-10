@@ -68,6 +68,20 @@ jobs:
           kubectl version --client
           kubectl get nodes
 
+      - name: Create SWR image pull secret
+        run: |
+          kubectl -n ${{ env.NAMESPACE }} create secret docker-registry swr-secret \
+            --docker-server=${{ env.SWR_REGISTRY }} \
+            --docker-username='${{ env.REGION }}@${{ secrets.SWR_AK }}' \
+            --docker-password='${{ secrets.SWR_PASSWORD }}' \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl -n ${{ env.NAMESPACE }} patch deployment/${{ env.BACKEND_DEPLOYMENT }} \
+            -p '{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"swr-secret"}]}}}}'
+
+          kubectl -n ${{ env.NAMESPACE }} patch deployment/${{ env.FRONTEND_DEPLOYMENT }} \
+            -p '{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"swr-secret"}]}}}}'
+
       - name: Update backend and frontend deployments
         run: |
           kubectl -n ${{ env.NAMESPACE }} set image deployment/${{ env.BACKEND_DEPLOYMENT }} \
